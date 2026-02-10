@@ -57,7 +57,7 @@ function bestFieldScore(q, rec) {
 
 // Replace this with your generated Experience URL pattern from the Share widget
 const EXPERIENCE_URL_TEMPLATE =
-  "https://experience.arcgis.com/experience/YOUR_APP_ID/?data_filter=YOUR_DATASOURCE_ID:OBJECTID={oid}&zoom_to_selection=true";
+  "https://experience.arcgis.com/experience/989a505311c74cab96cad936553caa20/page/Eritrea#data_s=id%3AdataSource_2-195fafec267-layer-9%3A{oid}&zoom_to_selection=true";
 
 function experienceUrlForOid(oid) {
   return EXPERIENCE_URL_TEMPLATE.replace("{oid}", String(oid));
