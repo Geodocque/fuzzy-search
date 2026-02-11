@@ -4,16 +4,44 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Fuzzy Search</title>
-  <style>
-    body { font-family: system-ui, sans-serif; margin: 12px; }
-    input { width: 100%; padding: 10px; font-size: 16px; }
-    .item { padding: 10px 6px; border-bottom: 1px solid #eee; display:flex; gap:10px; align-items:center; }
-    .meta { color:#666; font-size: 13px; }
-    button { padding: 8px 10px; }
-  </style>
+    <style>
+  body { font-family: system-ui, sans-serif; margin: 12px; }
+  input { width: 100%; padding: 10px; font-size: 16px; }
+
+  .item {
+    padding: 10px 6px;
+    border-bottom: 1px solid #eee;
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+  .item.selected { background: #f3f4f6; } /* light gray */
+  .meta { color:#666; font-size: 13px; margin-top: 2px; }
+
+  button { padding: 8px 10px; cursor: pointer; }
+  mark { padding: 0 2px; border-radius: 3px; }
+
+  .badge {
+    display:inline-block;
+    font-size: 12px;
+    padding: 2px 6px;
+    border: 1px solid #ddd;
+    border-radius: 999px;
+    color:#444;
+    background:#fafafa;
+    margin-left: 6px;
+  }
+
+  .hint {
+    color:#777;
+    font-size: 12px;
+    margin: 8px 2px 0;
+  }
+    </style>
 </head>
 <body>
-  <input id="q" placeholder="Search name or alt name (typos ok)..." autocomplete="off" />
+  <input id="q" placeholder="Zoek naam of alternatieve naam (typos zijn ok)..." autocomplete="off" />
+  <div class="hint">Tip: use ↑ ↓ and Enter to open a result.</div>
   <div id="results"></div>
 
 <script src="search.js"></script>
