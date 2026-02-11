@@ -57,23 +57,26 @@ function levenshteinScore(a, b) {
 
 /**
  * Highlight query characters as a subsequence inside text (best-effort).
- * This works well for typo scenarios like objct -> Object (highlights o b j c t).
- * It does NOT try to highlight exact edit operations; it highlights matched characters in order.
+ * Works well for typo scenarios like objct -> Object (highlights o b j c t).
  */
 function highlightSubsequence(text, query) {
   const t = text || "";
   const q = normalize(query).replace(/[^a-z0-9 ]/g, "");
   if (!q) return escapeHtml(t);
 
-  // map positions in original string (case-insensitive compare)
   let qi = 0;
   const marks = new Array(t.length).fill(false);
 
   for (let i = 0; i < t.length && qi < q.length; i++) {
     const tc = t[i].toLowerCase();
     const qc = q[qi];
+
     // skip spaces in query matching
-    if (qc === " ") { qi++; i--; continue; }
+    if (qc === " ") {
+      qi++;
+      i--;
+      continue;
+    }
 
     if (/[a-z0-9]/.test(tc) && tc === qc) {
       marks[i] = true;
@@ -81,7 +84,6 @@ function highlightSubsequence(text, query) {
     }
   }
 
-  // Render with <mark> around contiguous marked segments
   let out = "";
   let inMark = false;
   for (let i = 0; i < t.length; i++) {
@@ -108,8 +110,21 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+/**
+ * Formats context fields (Country, State, Region, District) into a single line.
+ * Records are expected to contain: country/state/region/district (lowercase).
+ * If your JSON uses different casing (e.g. Country), adapt here.
+ */
+function formatContext(r) {
+  const parts = [];
+  if (r.country) parts.push(r.country);
+  if (r.state) parts.push(r.state);
+  if (r.region) parts.push(r.region);
+  if (r.district) parts.push(r.district);
+  return parts.join(" • ");
+}
+
 function bestMatchInfo(q, rec) {
-  // Determine which field matched best and return info for display.
   let best = {
     score: levenshteinScore(q, rec.name),
     source: "name",
@@ -123,7 +138,7 @@ function bestMatchInfo(q, rec) {
     }
   }
 
-  // small boost if prefix matches the name
+  // small boost if prefix matches the name (helps usability)
   const nq = normalize(q);
   const nname = normalize(rec.name);
   if (nname.startsWith(nq) && nq.length >= 3) best.score = Math.min(best.score + 0.08, 1);
@@ -141,10 +156,9 @@ function getCandidates(q) {
     for (const id of ids) counts.set(id, (counts.get(id) || 0) + 1);
   }
 
-  // Take top candidates by trigram overlap
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 500) // tune
+    .slice(0, 500) // tune if needed
     .map(([id]) => RECORDS[id]);
 }
 
@@ -154,21 +168,19 @@ function search(q) {
 
   const candidates = getCandidates(q);
 
-  const scored = candidates
+  return candidates
     .map(rec => {
       const info = bestMatchInfo(q, rec);
       return {
         ...rec,
         score: info.score,
-        matchSource: info.source,     // "name" | "alt"
-        matchedText: info.matchedText // specific alt_name or name that matched best
+        matchSource: info.source,       // "name" | "alt"
+        matchedText: info.matchedText,  // specific alt_name or name
       };
     })
-    .filter(x => x.score >= 0.65) // tune threshold
+    .filter(x => x.score >= 0.65)       // tune threshold
     .sort((a, b) => b.score - a.score)
     .slice(0, 20);
-
-  return scored;
 }
 
 function setSelectedIndex(idx) {
@@ -182,18 +194,19 @@ function setSelectedIndex(idx) {
 }
 
 function scrollSelectedIntoView() {
-  const el = document.querySelector('.item.selected');
-  if (el) el.scrollIntoView({ block: 'nearest' });
+  const el = document.querySelector(".item.selected");
+  if (el) el.scrollIntoView({ block: "nearest" });
 }
 
 function openResult(r) {
   const url = experienceUrlForOid(r.oid);
-  // Use _blank to work reliably in Experience Builder iframe
+  // _blank works reliably in Experience Builder embed/iframe
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function render(results) {
   const el = document.getElementById("results");
+  const qValue = document.getElementById("q").value;
   el.innerHTML = "";
 
   results.forEach((r, i) => {
@@ -201,17 +214,23 @@ function render(results) {
     div.className = "item" + (i === selectedIndex ? " selected" : "");
     div.tabIndex = 0;
 
-    const matchLabel = r.matchSource === "alt"
-      ? `<span class="badge">alt name</span>`
-      : `<span class="badge">name</span>`;
+    const matchLabel =
+      r.matchSource === "alt"
+        ? `<span class="badge">alt name</span>`
+        : `<span class="badge">name</span>`;
 
-    const matchedLine = r.matchSource === "alt"
-      ? `<div class="meta">Matched alt: ${highlightSubsequence(r.matchedText, document.getElementById("q").value)}</div>`
-      : "";
+    const matchedLine =
+      r.matchSource === "alt"
+        ? `<div class="meta">Matched alt: ${highlightSubsequence(r.matchedText, qValue)}</div>`
+        : "";
+
+    const ctx = formatContext(r);
+    const ctxLine = ctx ? `<div class="meta">${escapeHtml(ctx)}</div>` : "";
 
     div.innerHTML = `
       <div style="flex:1; min-width:0">
-        <div><b>${highlightSubsequence(r.name, document.getElementById("q").value)}</b> ${matchLabel}</div>
+        <div><b>${highlightSubsequence(r.name, qValue)}</b> ${matchLabel}</div>
+        ${ctxLine}
         <div class="meta">OID: ${r.oid} • score: ${Math.round(r.score * 100)}</div>
         ${matchedLine}
       </div>
@@ -226,15 +245,15 @@ function render(results) {
       openResult(r);
     });
 
-    // Click row selects it (and double-click opens)
+    // Hover selects (lightweight)
     div.addEventListener("mousemove", () => {
       if (selectedIndex !== i) {
         selectedIndex = i;
-        // don't re-render on every pixel move; only when index changes
         render(currentResults);
       }
     });
 
+    // Double-click row opens
     div.addEventListener("dblclick", () => openResult(r));
 
     el.appendChild(div);
