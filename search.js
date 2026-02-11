@@ -75,7 +75,7 @@ function render(results) {
         <div class="meta">OID: ${r.oid} • score: ${Math.round(r.score*100)}</div>
       </div>
       <div>
-        <a href="${experienceUrlForOid(r.oid)}" target="_top" rel="noopener">
+        <a href="${experienceUrlForOid(r.oid)}" target="_blank" rel="noopener noreferrer">
           <button>Open</button>
         </a>
       </div>
