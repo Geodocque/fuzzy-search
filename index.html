@@ -37,11 +37,18 @@
     font-size: 12px;
     margin: 8px 2px 0;
   }
+        
+  .warning {
+    color:#9E1A1A;
+    font-size: 12px;
+    margin: 8px 2px 0;
+  }
     </style>
 </head>
 <body>
   <input id="q" placeholder="Zoek naam of alternatieve naam (typos zijn ok)..." autocomplete="off" />
-  <div class="hint">Tip: use ↑ ↓ and Enter to open a result.</div>
+  <div class="hint">Tip: Gebruik ↑ ↓ en Enter om een resultaat te tonen.</div>
+  <div class="warning">WAARSCHUWING: De fuzzy search brengt je op de Experience Builder pagina maar verliest de relatie met de zaak waarin je werkt. Werk door in het originele tabblad.</div>
   <div id="results"></div>
 
 <script src="search.js"></script>
