@@ -1,6 +1,17 @@
 let RECORDS = [];
 let TRI = {};
 
+let currentResults = [];
+let selectedIndex = -1;
+
+// Replace this with your working Experience URL template:
+const EXPERIENCE_URL_TEMPLATE =
+  "https://experience.arcgis.com/experience/989a505311c74cab96cad936553caa20/page/Eritrea#data_s=id%3AdataSource_2-195fafec267-layer-9%3A{oid}&zoom_to_selection=true";
+
+function experienceUrlForOid(oid) {
+  return EXPERIENCE_URL_TEMPLATE.replace("{oid}", String(oid));
+}
+
 function normalize(s) {
   return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
 }
@@ -9,14 +20,15 @@ function trigrams(s) {
   s = normalize(s).replace(/[^a-z0-9 ]/g, "");
   s = `  ${s}  `;
   const set = new Set();
-  for (let i = 0; i < s.length - 2; i++) set.add(s.slice(i, i+3));
+  for (let i = 0; i < s.length - 2; i++) set.add(s.slice(i, i + 3));
   return [...set];
 }
 
-// Simple edit-distance score (OK for candidate set sizes)
+// Simple edit-distance score (OK on reduced candidate set)
 // 1.0 = perfect, 0.0 = terrible
 function levenshteinScore(a, b) {
-  a = normalize(a); b = normalize(b);
+  a = normalize(a);
+  b = normalize(b);
   if (!a || !b) return 0;
   if (a === b) return 1;
 
@@ -29,10 +41,10 @@ function levenshteinScore(a, b) {
     dp[0] = i;
     for (let j = 1; j <= n; j++) {
       const tmp = dp[j];
-      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
       dp[j] = Math.min(
         dp[j] + 1,
-        dp[j-1] + 1,
+        dp[j - 1] + 1,
         prev + cost
       );
       prev = tmp;
@@ -43,52 +55,83 @@ function levenshteinScore(a, b) {
   return 1 - (dist / maxLen);
 }
 
-function bestFieldScore(q, rec) {
-  let best = levenshteinScore(q, rec.name);
-  for (const a of rec.alt_names || []) {
-    best = Math.max(best, levenshteinScore(q, a));
+/**
+ * Highlight query characters as a subsequence inside text (best-effort).
+ * This works well for typo scenarios like objct -> Object (highlights o b j c t).
+ * It does NOT try to highlight exact edit operations; it highlights matched characters in order.
+ */
+function highlightSubsequence(text, query) {
+  const t = text || "";
+  const q = normalize(query).replace(/[^a-z0-9 ]/g, "");
+  if (!q) return escapeHtml(t);
+
+  // map positions in original string (case-insensitive compare)
+  let qi = 0;
+  const marks = new Array(t.length).fill(false);
+
+  for (let i = 0; i < t.length && qi < q.length; i++) {
+    const tc = t[i].toLowerCase();
+    const qc = q[qi];
+    // skip spaces in query matching
+    if (qc === " ") { qi++; i--; continue; }
+
+    if (/[a-z0-9]/.test(tc) && tc === qc) {
+      marks[i] = true;
+      qi++;
+    }
   }
-  // small boost if prefix matches
+
+  // Render with <mark> around contiguous marked segments
+  let out = "";
+  let inMark = false;
+  for (let i = 0; i < t.length; i++) {
+    const ch = escapeHtml(t[i]);
+    if (marks[i] && !inMark) {
+      out += "<mark>";
+      inMark = true;
+    } else if (!marks[i] && inMark) {
+      out += "</mark>";
+      inMark = false;
+    }
+    out += ch;
+  }
+  if (inMark) out += "</mark>";
+  return out;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function bestMatchInfo(q, rec) {
+  // Determine which field matched best and return info for display.
+  let best = {
+    score: levenshteinScore(q, rec.name),
+    source: "name",
+    matchedText: rec.name,
+  };
+
+  for (const alt of (rec.alt_names || [])) {
+    const s = levenshteinScore(q, alt);
+    if (s > best.score) {
+      best = { score: s, source: "alt", matchedText: alt };
+    }
+  }
+
+  // small boost if prefix matches the name
   const nq = normalize(q);
   const nname = normalize(rec.name);
-  if (nname.startsWith(nq) && nq.length >= 3) best += 0.1;
-  return Math.min(best, 1);
+  if (nname.startsWith(nq) && nq.length >= 3) best.score = Math.min(best.score + 0.08, 1);
+
+  return best;
 }
 
-// Replace this with your generated Experience URL pattern from the Share widget
-const EXPERIENCE_URL_TEMPLATE =
-  "https://experience.arcgis.com/experience/989a505311c74cab96cad936553caa20/page/Eritrea#data_s=id%3AdataSource_2-195fafec267-layer-9%3A{oid}&zoom_to_selection=true";
-
-function experienceUrlForOid(oid) {
-  return EXPERIENCE_URL_TEMPLATE.replace("{oid}", String(oid));
-}
-
-function render(results) {
-  const el = document.getElementById("results");
-  el.innerHTML = "";
-  for (const r of results) {
-    const div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `
-      <div style="flex:1">
-        <div><b>${r.name}</b></div>
-        <div class="meta">OID: ${r.oid} • score: ${Math.round(r.score*100)}</div>
-      </div>
-      <div>
-        <a href="${experienceUrlForOid(r.oid)}" target="_blank" rel="noopener noreferrer">
-          <button>Open</button>
-        </a>
-      </div>
-    `;
-    el.appendChild(div);
-  }
-}
-
-function search(q) {
-  q = normalize(q);
-  if (q.length < 2) return [];
-
-  // candidate retrieval via trigram overlap
+function getCandidates(q) {
   const tris = trigrams(q);
   const counts = new Map();
 
@@ -98,20 +141,104 @@ function search(q) {
     for (const id of ids) counts.set(id, (counts.get(id) || 0) + 1);
   }
 
-  // take top candidates by trigram overlap
-  const candidates = [...counts.entries()]
-    .sort((a,b) => b[1] - a[1])
-    .slice(0, 500) // tune: 200–1000
+  // Take top candidates by trigram overlap
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 500) // tune
     .map(([id]) => RECORDS[id]);
+}
 
-  // score candidates
+function search(q) {
+  q = normalize(q);
+  if (q.length < 2) return [];
+
+  const candidates = getCandidates(q);
+
   const scored = candidates
-    .map(rec => ({...rec, score: bestFieldScore(q, rec)}))
+    .map(rec => {
+      const info = bestMatchInfo(q, rec);
+      return {
+        ...rec,
+        score: info.score,
+        matchSource: info.source,     // "name" | "alt"
+        matchedText: info.matchedText // specific alt_name or name that matched best
+      };
+    })
     .filter(x => x.score >= 0.65) // tune threshold
-    .sort((a,b) => b.score - a.score)
+    .sort((a, b) => b.score - a.score)
     .slice(0, 20);
 
   return scored;
+}
+
+function setSelectedIndex(idx) {
+  if (!currentResults.length) {
+    selectedIndex = -1;
+    return;
+  }
+  selectedIndex = Math.max(0, Math.min(idx, currentResults.length - 1));
+  render(currentResults);
+  scrollSelectedIntoView();
+}
+
+function scrollSelectedIntoView() {
+  const el = document.querySelector('.item.selected');
+  if (el) el.scrollIntoView({ block: 'nearest' });
+}
+
+function openResult(r) {
+  const url = experienceUrlForOid(r.oid);
+  // Use _blank to work reliably in Experience Builder iframe
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function render(results) {
+  const el = document.getElementById("results");
+  el.innerHTML = "";
+
+  results.forEach((r, i) => {
+    const div = document.createElement("div");
+    div.className = "item" + (i === selectedIndex ? " selected" : "");
+    div.tabIndex = 0;
+
+    const matchLabel = r.matchSource === "alt"
+      ? `<span class="badge">alt name</span>`
+      : `<span class="badge">name</span>`;
+
+    const matchedLine = r.matchSource === "alt"
+      ? `<div class="meta">Matched alt: ${highlightSubsequence(r.matchedText, document.getElementById("q").value)}</div>`
+      : "";
+
+    div.innerHTML = `
+      <div style="flex:1; min-width:0">
+        <div><b>${highlightSubsequence(r.name, document.getElementById("q").value)}</b> ${matchLabel}</div>
+        <div class="meta">OID: ${r.oid} • score: ${Math.round(r.score * 100)}</div>
+        ${matchedLine}
+      </div>
+      <div>
+        <button type="button">Open</button>
+      </div>
+    `;
+
+    // Click Open button
+    div.querySelector("button").addEventListener("click", (e) => {
+      e.preventDefault();
+      openResult(r);
+    });
+
+    // Click row selects it (and double-click opens)
+    div.addEventListener("mousemove", () => {
+      if (selectedIndex !== i) {
+        selectedIndex = i;
+        // don't re-render on every pixel move; only when index changes
+        render(currentResults);
+      }
+    });
+
+    div.addEventListener("dblclick", () => openResult(r));
+
+    el.appendChild(div);
+  });
 }
 
 async function init() {
@@ -121,9 +248,32 @@ async function init() {
   ]);
 
   const input = document.getElementById("q");
+
   input.addEventListener("input", () => {
-    const res = search(input.value);
-    render(res);
+    currentResults = search(input.value);
+    selectedIndex = currentResults.length ? 0 : -1;
+    render(currentResults);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (!currentResults.length) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex(selectedIndex + 1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex(selectedIndex - 1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const r = currentResults[selectedIndex];
+      if (r) openResult(r);
+    } else if (e.key === "Escape") {
+      input.value = "";
+      currentResults = [];
+      selectedIndex = -1;
+      render(currentResults);
+    }
   });
 }
 
