@@ -260,11 +260,34 @@ function render(results) {
   });
 }
 
+function showError(msg) {
+  const el = document.getElementById("results");
+  if (el) el.innerHTML = `<div style="color:#9E1A1A;padding:10px;">${escapeHtml(msg)}</div>`;
+}
+
 async function init() {
-  [RECORDS, TRI] = await Promise.all([
-    fetch("records.json").then(r => r.json()),
-    fetch("trigram_index.json").then(r => r.json()),
-  ]);
+  try {
+    const [recordsResp, triResp] = await Promise.all([
+      fetch("records.json"),
+      fetch("trigram_index.json"),
+    ]);
+
+    if (!recordsResp.ok) throw new Error(`Failed to load records.json: ${recordsResp.status} ${recordsResp.statusText}`);
+    if (!triResp.ok) throw new Error(`Failed to load trigram_index.json: ${triResp.status} ${triResp.statusText}`);
+
+    [RECORDS, TRI] = await Promise.all([
+      recordsResp.json(),
+      triResp.json(),
+    ]);
+
+    if (!RECORDS.length) throw new Error("records.json loaded but is empty.");
+    if (!Object.keys(TRI).length) throw new Error("trigram_index.json loaded but is empty.");
+
+  } catch (err) {
+    showError(`Zoeken niet beschikbaar: ${err.message}`);
+    console.error("init() failed:", err);
+    return;
+  }
 
   const input = document.getElementById("q");
 
