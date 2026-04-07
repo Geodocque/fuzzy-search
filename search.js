@@ -283,6 +283,8 @@ async function init() {
     if (!RECORDS.length) throw new Error("records.json loaded but is empty.");
     if (!Object.keys(TRI).length) throw new Error("trigram_index.json loaded but is empty.");
 
+    console.log(`[fuzzy-search] init OK — records: ${RECORDS.length}, trigrams: ${Object.keys(TRI).length}`);
+
   } catch (err) {
     showError(`Zoeken niet beschikbaar: ${err.message}`);
     console.error("init() failed:", err);
@@ -293,6 +295,7 @@ async function init() {
 
   input.addEventListener("input", () => {
     currentResults = search(input.value);
+    console.log(`[fuzzy-search] query: "${input.value}" → ${currentResults.length} results`);
     selectedIndex = currentResults.length ? 0 : -1;
     render(currentResults);
   });
