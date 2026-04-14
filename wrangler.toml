@@ -1,0 +1,7 @@
+name = "fuzzy-search-worker"
+main = "worker/index.js"
+compatibility_date = "2026-04-14"
+
+[[r2_buckets]]
+binding = "APP_DATA_BUCKET"
+bucket_name = "my-app-data"
