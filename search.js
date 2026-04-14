@@ -5,7 +5,7 @@ let currentResults = [];
 let selectedIndex = -1;
 
 // Replace this with your actual Cloudflare Worker URL
-const DATA_API_BASE = "https://fuzzy-search-worker.YOUR_SUBDOMAIN.workers.dev";
+const DATA_API_BASE = "https://broken-fire-9499.dhrdanielvandok.workers.dev";
 
 // Replace this with your working Experience URL template:
 const EXPERIENCE_URL_TEMPLATE =
