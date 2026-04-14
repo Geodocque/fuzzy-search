@@ -1,2 +1,4 @@
 records.json
 trigram_index.json
+node_modules
+.wrangler
