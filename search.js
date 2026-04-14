@@ -4,6 +4,9 @@ let TRI = {};
 let currentResults = [];
 let selectedIndex = -1;
 
+// Replace this with your actual Cloudflare Worker URL
+const DATA_API_BASE = "https://fuzzy-search-worker.YOUR_SUBDOMAIN.workers.dev";
+
 // Replace this with your working Experience URL template:
 const EXPERIENCE_URL_TEMPLATE =
   "https://experience.arcgis.com/experience/989a505311c74cab96cad936553caa20/page/Eritrea#data_s=id%3AdataSource_2-195fafec267-layer-9%3A{oid}&zoom_to_selection=true";
@@ -158,7 +161,7 @@ function getCandidates(q) {
 
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 500) // tune if needed
+    .slice(0, 500)
     .map(([id]) => RECORDS[id]);
 }
 
@@ -174,11 +177,11 @@ function search(q) {
       return {
         ...rec,
         score: info.score,
-        matchSource: info.source,       // "name" | "alt"
-        matchedText: info.matchedText,  // specific alt_name or name
+        matchSource: info.source,
+        matchedText: info.matchedText,
       };
     })
-    .filter(x => x.score >= 0.65)       // tune threshold
+    .filter(x => x.score >= 0.65)
     .sort((a, b) => b.score - a.score)
     .slice(0, 20);
 }
@@ -200,7 +203,6 @@ function scrollSelectedIntoView() {
 
 function openResult(r) {
   const url = experienceUrlForOid(r.oid);
-  // _blank works reliably in Experience Builder embed/iframe
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
@@ -239,13 +241,11 @@ function render(results) {
       </div>
     `;
 
-    // Click Open button
     div.querySelector("button").addEventListener("click", (e) => {
       e.preventDefault();
       openResult(r);
     });
 
-    // Hover selects (lightweight)
     div.addEventListener("mousemove", () => {
       if (selectedIndex !== i) {
         selectedIndex = i;
@@ -253,7 +253,6 @@ function render(results) {
       }
     });
 
-    // Double-click row opens
     div.addEventListener("dblclick", () => openResult(r));
 
     el.appendChild(div);
@@ -268,8 +267,8 @@ function showError(msg) {
 async function init() {
   try {
     const [recordsResp, triResp] = await Promise.all([
-      fetch("records.json"),
-      fetch("trigram_index.json"),
+      fetch(`${DATA_API_BASE}/api/file?name=records.json`),
+      fetch(`${DATA_API_BASE}/api/file?name=trigram_index.json`),
     ]);
 
     if (!recordsResp.ok) throw new Error(`Failed to load records.json: ${recordsResp.status} ${recordsResp.statusText}`);
